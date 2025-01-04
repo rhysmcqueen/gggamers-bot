@@ -1,4 +1,6 @@
+#Custom
 .env
+commands/SIN.json
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
