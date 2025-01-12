@@ -19,20 +19,20 @@ async def vote_mute(interaction: nextcord.Interaction, user: nextcord.Member):
     # Respond immediately to the interaction
     await interaction.response.send_message("Vote is cast!", ephemeral=True)
 
-    # Bot joins the voice channel and plays the sound
-    vc = await channel.connect()
-    audio_source = nextcord.FFmpegPCMAudio("/home/serveradmin/gggamers-discord-bot/commands/vote_to_mute.mp3")
+    # Try to connect to the voice channel and handle errors
+    try:
+        vc = await channel.connect()
+        audio_source = nextcord.FFmpegPCMAudio("/home/serveradmin/gggamers-discord-bot/commands/vote_to_mute.mp3")
 
-    if not vc.is_playing():
-        vc.play(audio_source)
+        if not vc.is_playing():
+            vc.play(audio_source)
 
-    # Wait for the sound to finish
-    while vc.is_playing():
-        await asyncio.sleep(1)
+        # Wait for the sound to finish
+        while vc.is_playing():
+            await asyncio.sleep(1)
 
-    # Disconnect after playing the sound
-    await vc.disconnect()
-
+        # Disconnect after playing the sound
+        await vc.disconnect()
     except Exception as e:
         await interaction.followup.send(f"Error connecting to voice channel: {e}")
         return
@@ -89,7 +89,7 @@ async def vote_mute(interaction: nextcord.Interaction, user: nextcord.Member):
     if votes_yes >= votes_needed:
         await user.edit(mute=True)
         await interaction.channel.send(f"{user.mention} has been muted for 5 minutes.")
-        await asyncio.sleep(300)
+        await asyncio.sleep(30)
         await user.edit(mute=False)
         await interaction.channel.send(f"{user.mention} has been unmuted.")
     else:
