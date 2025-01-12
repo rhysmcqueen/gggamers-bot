@@ -30,53 +30,9 @@ def format_timestamp(timestamp):
     date = datetime.datetime.fromtimestamp(timestamp / 1000)  # Convert milliseconds to seconds
     return date.strftime("%d-%m-%y %H:%M")
 
-def handle_api_error(response):
-    """Handle common API errors and return a user-friendly message."""
-    if response.status_code == 429:
-        return "Slow the fuck down, Rito's servers can only handle so much!"
-    elif response.status_code == 403:
-        return "Invalid API key. WERES MY JUNGLE!!"
-    elif response.status_code == 404:
-        return "Summoner not found. Did you spell it correctly?"
-    return f"An error occurred: {response.status_code} {response.reason}"
 
-def get_account_data(summoner_name, tag_line):
-    """Fetch account data by Riot ID."""
-    tag_line = tag_line or "na1"  # Default to "na1" if not provided
-    url = f"https://{ACCOUNT_REGION}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/{summoner_name}/{tag_line}"
-    headers = {"X-Riot-Token": RIOT_API_KEY}
-
-    response = requests.get(url, headers=headers)
-    if response.status_code != 200:
-        raise Exception(handle_api_error(response))
-    return response.json()
-
-def get_match_history(puuid, count):
-    """Fetch match history for a given PUUID with a configurable count."""
-    # Ensure count is within the API limit of 1 to 100
-    if not (1 <= count <= 100):
-        raise ValueError("Count must be between 1 and 100.")
-
-    url = f"https://{ACCOUNT_REGION}.api.riotgames.com/lol/match/v5/matches/by-puuid/{puuid}/ids?count={count}"
-    headers = {"X-Riot-Token": RIOT_API_KEY}
-
-    response = requests.get(url, headers=headers)
-    if response.status_code != 200:
-        raise Exception(handle_api_error(response))
-    return response.json()
-
-def get_match_details(match_id):
-    """Fetch match details by match ID."""
-    url = f"https://{ACCOUNT_REGION}.api.riotgames.com/lol/match/v5/matches/{match_id}"
-    headers = {"X-Riot-Token": RIOT_API_KEY}
-
-    response = requests.get(url, headers=headers)
-    if response.status_code != 200:
-        raise Exception(handle_api_error(response))
-    return response.json()
-
-async def fetch_and_format_history(summoner_name, tag_line, match_count):
-    """Fetch and format match history for a Riot ID."""
+async def fetch_and_format_history(game_name, tag_line, match_count):
+    """Fetch and format match history for a Riot ID, including total win-loss count and links."""
     # Step 1: Get account data
     account_data = get_account_data(summoner_name, tag_line)
     puuid = account_data["puuid"]
