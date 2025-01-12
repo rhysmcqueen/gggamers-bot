@@ -3,48 +3,14 @@ import nextcord
 from nextcord.ext import commands
 from dotenv import load_dotenv
 import os
+import datetime
 
 # Load .env file
 load_dotenv()
 
-
 RIOT_API_KEY = os.getenv("RIOT_API_KEY")  # Load from .env
 REGION = "na1"  # Set the region for the Match API (adjust as needed)
 ACCOUNT_REGION = "americas"  # Use the broader account region for the Account API
-
-def get_account_data(game_name, tag_line):
-    """Fetch account data by Riot ID."""
-    url = f"https://{ACCOUNT_REGION}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/{game_name}/{tag_line}"
-    headers = {"X-Riot-Token": RIOT_API_KEY}
-
-    response = requests.get(url, headers=headers)
-    response.raise_for_status()
-    return response.json()
-
-def get_match_history(puuid, count):
-    """Fetch match history for a given PUUID with a configurable count from the command."""
-    # Ensure count is within the API limit of 1 to 100
-    if not (1 <= count <= 100):
-        raise ValueError("Count must be between 1 and 100.")
-
-    # Construct the API URL with the dynamic count
-    url = f"https://{ACCOUNT_REGION}.api.riotgames.com/lol/match/v5/matches/by-puuid/{puuid}/ids?count={count}"
-    headers = {"X-Riot-Token": RIOT_API_KEY}
-
-    # Make the API request
-    response = requests.get(url, headers=headers)
-    response.raise_for_status()
-    return response.json()
-
-def get_match_details(match_id):
-    """Fetch match details by match ID."""
-    url = f"https://{ACCOUNT_REGION}.api.riotgames.com/lol/match/v5/matches/{match_id}"
-    headers = {"X-Riot-Token": RIOT_API_KEY}
-
-    response = requests.get(url, headers=headers)
-    response.raise_for_status()
-    return response.json()
-import datetime
 
 # Mapping queue IDs to human-readable names
 QUEUE_ID_MAPPING = {
@@ -64,15 +30,60 @@ def format_timestamp(timestamp):
     date = datetime.datetime.fromtimestamp(timestamp / 1000)  # Convert milliseconds to seconds
     return date.strftime("%d-%m-%y %H:%M")
 
+def handle_api_error(response):
+    """Handle common API errors and return a user-friendly message."""
+    if response.status_code == 429:
+        return "Slow the fuck down, Rito's servers can only handle so much!"
+    elif response.status_code == 403:
+        return "Invalid API key. WERES MY JUNGLE!!"
+    elif response.status_code == 404:
+        return "Summoner not found. Did you spell it correctly?"
+    return f"An error occurred: {response.status_code} {response.reason}"
 
-async def fetch_and_format_history(game_name, tag_line, match_count):
-    """Fetch and format match history for a Riot ID, including total win-loss count and links."""
+def get_account_data(summoner_name, tag_line):
+    """Fetch account data by Riot ID."""
+    tag_line = tag_line or "na1"  # Default to "na1" if not provided
+    url = f"https://{ACCOUNT_REGION}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/{summoner_name}/{tag_line}"
+    headers = {"X-Riot-Token": RIOT_API_KEY}
+
+    response = requests.get(url, headers=headers)
+    if response.status_code != 200:
+        raise Exception(handle_api_error(response))
+    return response.json()
+
+def get_match_history(puuid, count):
+    """Fetch match history for a given PUUID with a configurable count."""
+    # Ensure count is within the API limit of 1 to 100
+    if not (1 <= count <= 100):
+        raise ValueError("Count must be between 1 and 100.")
+
+    url = f"https://{ACCOUNT_REGION}.api.riotgames.com/lol/match/v5/matches/by-puuid/{puuid}/ids?count={count}"
+    headers = {"X-Riot-Token": RIOT_API_KEY}
+
+    response = requests.get(url, headers=headers)
+    if response.status_code != 200:
+        raise Exception(handle_api_error(response))
+    return response.json()
+
+def get_match_details(match_id):
+    """Fetch match details by match ID."""
+    url = f"https://{ACCOUNT_REGION}.api.riotgames.com/lol/match/v5/matches/{match_id}"
+    headers = {"X-Riot-Token": RIOT_API_KEY}
+
+    response = requests.get(url, headers=headers)
+    if response.status_code != 200:
+        raise Exception(handle_api_error(response))
+    return response.json()
+
+async def fetch_and_format_history(summoner_name, tag_line, match_count):
+    """Fetch and format match history for a Riot ID."""
     # Step 1: Get account data
-    account_data = get_account_data(game_name, tag_line)
+    account_data = get_account_data(summoner_name, tag_line)
     puuid = account_data["puuid"]
 
     # Construct summoner profile link
-    summoner_profile_url = f"https://www.leagueofgraphs.com/summoner/na/{game_name}-{tag_line.upper()}"
+    encoded_summoner_name = summoner_name.replace(" ", "%20")
+    summoner_profile_url = f"https://www.leagueofgraphs.com/summoner/na/{encoded_summoner_name}-{(tag_line or 'na1').upper()}"
 
     # Step 2: Get match IDs with the specified count
     match_ids = get_match_history(puuid, match_count)
@@ -97,10 +108,9 @@ async def fetch_and_format_history(game_name, tag_line, match_count):
         queue_id = match["info"]["queueId"]
         queue_type = QUEUE_ID_MAPPING.get(queue_id, "Unknown Mode")
 
-        # Construct match details link with timestamp
+        # Construct match details link
         match_id = match["metadata"]["matchId"]
-        timestamp = match["info"]["gameCreation"] // 1000  # Convert to seconds
-        match_url = f"https://www.leagueofgraphs.com/match/na/{match_id.split('_')[1]}?t={timestamp}"
+        match_url = f"https://www.leagueofgraphs.com/match/na/{match_id.split('_')[1]}"
 
         # Update win/loss counters
         if participant["win"]:
@@ -118,20 +128,23 @@ async def fetch_and_format_history(game_name, tag_line, match_count):
     results.append(f"**Wins:** {wins} ✅ | **Losses:** {losses} ❌")
     results.append(f"\n[View Summoner Profile]({summoner_profile_url})")
 
-    return "\n".join(results)
+    return results
 
-
+def split_by_chunk_size(content, chunk_size):
+    """Split a list into chunks of a specified size."""
+    for i in range(0, len(content), chunk_size):
+        yield content[i:i + chunk_size]
 
 def add_match_history_command(bot):
     @bot.slash_command(
         name="match_history",
-        description="Get the match history of a summoner by Riot ID."
+        description="Get the match history of a summoner by Summoner Name."
     )
     async def match_history_command(
         interaction: nextcord.Interaction,
-        game_name: str,
-        tag_line: str,
-        match_count: int = 10  # Default to 10 matches, configurable via command
+        summoner_name: str,
+        tag_line: str = None,  # Optional, defaults to None
+        match_count: int = 10  # Default to 10 matches
     ):
         # Limit match count to 1-50 for usability
         if match_count > 50:
@@ -143,14 +156,16 @@ def add_match_history_command(bot):
 
         try:
             # Fetch and format the history with the specified match count
-            history = await fetch_and_format_history(game_name, tag_line, match_count)
+            history = await fetch_and_format_history(summoner_name, tag_line, match_count)
 
-            # Send the response as a public message
-            embed = nextcord.Embed(
-                title=f"Match History for {game_name}#{tag_line}",
-                description=history,
-                color=0x1e90ff
-            )
-            await interaction.followup.send(embed=embed)
+            # Split the results into chunks of 20 entries
+            chunks = list(split_by_chunk_size(history, 20))
+            for i, chunk in enumerate(chunks):
+                embed = nextcord.Embed(
+                    title=f"Match History for {summoner_name}#{tag_line or 'na1'} (Page {i + 1}/{len(chunks)})",
+                    description="\n".join(chunk),
+                    color=0x1e90ff
+                )
+                await interaction.followup.send(embed=embed)
         except Exception as e:
-            await interaction.followup.send(f"Error fetching match history: {e}")
+            await interaction.followup.send(str(e))

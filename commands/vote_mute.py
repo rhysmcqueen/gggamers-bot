@@ -1,9 +1,11 @@
 import nextcord
 from nextcord.ext import commands
 import asyncio
+import os
 
 async def vote_mute(interaction: nextcord.Interaction, user: nextcord.Member):
     """Initiate a vote to mute a user in voice chat and play a sound upon command invocation."""
+
     # Ensure the command issuer is in a voice channel
     channel = interaction.user.voice.channel if interaction.user.voice else None
     if not channel:
@@ -15,39 +17,66 @@ async def vote_mute(interaction: nextcord.Interaction, user: nextcord.Member):
         await interaction.response.send_message(f"{user.display_name} is not in the same voice channel.", ephemeral=True)
         return
 
-    # Respond immediately to the interaction
-    await interaction.response.send_message("Vote is cast!", ephemeral=True)
+    # Defer interaction response publicly
+    try:
+        await interaction.response.defer(ephemeral=False)
+        print("Interaction deferred successfully.")
+    except nextcord.errors.InteractionResponded:
+        print("Interaction already responded to.")
+        return
 
-    # Bot joins the voice channel and plays the sound
-    vc = await channel.connect()
-    audio_source = nextcord.FFmpegPCMAudio("/home/serveradmin/gggamers-discord-bot/commands/vote_to_mute.mp3")
+    # Ensure the bot is not already connected to a voice channel
+    if interaction.guild.voice_client:
+        await interaction.guild.voice_client.disconnect()
 
-    if not vc.is_playing():
-        vc.play(audio_source)
+    # Path to audio file
+    audio_path = "/home/serveradmin/gggamers-bot/commands/vote_to_mute.mp3"
+    if not os.path.exists(audio_path):
+        await interaction.followup.send("Audio file not found. Please check the file path.")
+        return
 
-    # Wait for the sound to finish
-    while vc.is_playing():
-        await asyncio.sleep(1)
+    # Connect to the voice channel and play the audio
+    try:
+        vc = await channel.connect()
+        audio_source = nextcord.FFmpegPCMAudio(audio_path)
 
-    # Disconnect after playing the sound
-    await vc.disconnect()
+        if not vc.is_playing():
+            vc.play(audio_source)
+            print("Audio is playing.")
+
+        # Wait for the audio to finish
+        while vc.is_playing():
+            await asyncio.sleep(1)
+
+        await vc.disconnect()
+        print("Audio finished and bot disconnected.")
+    except Exception as e:
+        print(f"Error connecting or playing audio: {e}")
+        await interaction.followup.send("Failed to connect to the voice channel or play the audio.")
+        return
 
     # Voting setup
     voters = [member for member in channel.members if not member.bot]
-    votes_needed = max(len(voters) // 2, 1)  # At least one vote is required
+    votes_needed = max(len(voters) // 2, 1)
 
     votes_yes, votes_no = 0, 0
 
     # Embed for voting
     embed = nextcord.Embed(
         title="Vote to Mute",
-        description=f"Vote to mute {user.mention} for 5 minutes.\nVotes needed: {votes_needed}\nReact with 👍 for YES or 👎 for NO.",
+        description=f"Vote to mute {user.mention} for 30 seconds.\nVotes needed: {votes_needed}\nReact with 👍 for YES or 👎 for NO.",
         color=0xff0000
     )
-    message = await interaction.channel.send(embed=embed)  # Public message
-    await message.add_reaction("👍")
-    await message.add_reaction("👎")
+    try:
+        message = await interaction.channel.send(embed=embed)
+        print("Voting embed sent successfully.")
+        await message.add_reaction("👍")
+        await message.add_reaction("👎")
+    except Exception as e:
+        print(f"Error sending embed or adding reactions: {e}")
+        return
 
+    # Reaction handling for votes
     def check(reaction, member):
         return (
             reaction.message.id == message.id
@@ -55,7 +84,6 @@ async def vote_mute(interaction: nextcord.Interaction, user: nextcord.Member):
             and str(reaction.emoji) in ["👍", "👎"]
         )
 
-    # Collect votes
     try:
         while votes_yes < votes_needed and votes_no < votes_needed:
             reaction, member = await interaction.client.wait_for("reaction_add", timeout=30.0, check=check)
@@ -68,7 +96,7 @@ async def vote_mute(interaction: nextcord.Interaction, user: nextcord.Member):
             # Update the embed
             await message.edit(embed=nextcord.Embed(
                 title="Vote to Mute",
-                description=f"Vote to mute {user.mention} for 5 minutes.\nVotes needed: {votes_needed}\n👍 Yes: {votes_yes}\n👎 No: {votes_no}",
+                description=f"Vote to mute {user.mention} for 30 seconds.\nVotes needed: {votes_needed}\n👍 Yes: {votes_yes}\n👎 No: {votes_no}",
                 color=0xff0000
             ))
     except asyncio.TimeoutError:
@@ -77,14 +105,15 @@ async def vote_mute(interaction: nextcord.Interaction, user: nextcord.Member):
             description=f"Vote timed out.\n👍 Yes: {votes_yes}\n👎 No: {votes_no}",
             color=0xff0000
         ))
+        print("Voting timed out.")
         return
 
     # Apply mute if votes pass
     if votes_yes >= votes_needed:
-        await user.edit(mute=True)
-        await interaction.channel.send(f"{user.mention} has been muted for 5 minutes.")
-        await asyncio.sleep(300)
-        await user.edit(mute=False)
+        await user.edit(mute=True)  # Mute the user
+        await interaction.channel.send(f"{user.mention} has been muted for 30 seconds.")
+        await asyncio.sleep(30)  # Wait for 30 seconds
+        await user.edit(mute=False)  # Unmute the user
         await interaction.channel.send(f"{user.mention} has been unmuted.")
     else:
         await interaction.channel.send(f"Vote failed. {user.mention} will not be muted.")
