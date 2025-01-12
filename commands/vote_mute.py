@@ -88,7 +88,7 @@ async def vote_mute(interaction: nextcord.Interaction, user: nextcord.Member):
     # Apply mute if votes pass
     if votes_yes >= votes_needed:
         await user.edit(mute=True)
-        await interaction.channel.send(f"{user.mention} has been muted for 5 minutes.")
+        await interaction.channel.send(f"{user.mention} has been muted for 30 seconds.")
         await asyncio.sleep(30)
         await user.edit(mute=False)
         await interaction.channel.send(f"{user.mention} has been unmuted.")
