@@ -6,7 +6,8 @@ from commands.setup_roles import setup_roles, add_reaction_handler
 from commands.vote_mute import vote_mute
 from commands.get_scammed import add_scam_command
 from commands.match_history import add_match_history_command
-from commands.ask_chatgpt import add_gpt_chat_command
+# from commands.ask_chatgpt import add_gpt_chat_command
+from commands.jar_counter import add_jar_commands
 
 from dotenv import load_dotenv
 import os
@@ -56,7 +57,9 @@ add_scam_command(bot, guild_ids=GUILD_IDS)
 add_match_history_command(bot)
 
 #chat GPT
-add_gpt_chat_command(bot, GUILD_IDS)
+# add_gpt_chat_command(bot, GUILD_IDS)
+#Jack counter
+add_jar_commands(bot)
 
 
 bot.run(TOKEN)
