@@ -39,7 +39,7 @@ async def vote_mute(interaction: nextcord.Interaction, user: nextcord.Member):
 
     # Voting setup
     voters = [member for member in channel.members if not member.bot]
-    votes_needed = max(len(voters) // 2, 1)
+    votes_needed = (len(voters) + 1) // 2
 
     votes_yes, votes_no = 0, 0
 

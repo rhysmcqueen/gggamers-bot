@@ -11,6 +11,7 @@ from commands.jar_counter import add_jar_commands
 
 from dotenv import load_dotenv
 import os
+import logging
 
 # Load .env file
 load_dotenv()
@@ -18,6 +19,14 @@ load_dotenv()
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 GUILD_IDS = list(map(int, os.getenv("GUILD_IDS", "").split(",")))
 
+# Configure global logger
+logging.basicConfig(
+    filename="bot.log",
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+
+logger = logging.getLogger("BotLogger")
 # Bot Configuration
 intents = nextcord.Intents.default()
 intents.messages = True
@@ -29,10 +38,12 @@ bot = commands.Bot(intents=intents)
 
 @bot.event
 async def on_ready():
+    logger.info(f"Bot logged in as {bot.user}")
     print(f"Bot logged in as {bot.user}")
     # Sync all commands
     await bot.sync_all_application_commands()
     print("All commands synchronized.")
+    logger.info("All commands synchronized.")
 
 
 
@@ -61,5 +72,23 @@ add_match_history_command(bot)
 #Jack counter
 add_jar_commands(bot)
 
+@bot.event
+async def on_application_command(interaction: nextcord.Interaction):
+    """Log all command invocations."""
+    try:
+        user = interaction.user
+        command_name = interaction.data.get("name", "Unknown")
+        channel = interaction.channel.name if interaction.channel else "Direct Message"
+        logger.info(f"User {user} triggered command '{command_name}' in channel '{channel}'.")
+    except Exception as e:
+        logger.error(f"Error logging command invocation: {e}")
+
+@bot.event
+async def on_command_error(ctx, error):
+    """Log errors for uncaught exceptions."""
+    if isinstance(error, commands.CommandNotFound):
+        logger.warning(f"Command not found: {ctx.command}. User: {ctx.author}.")
+    else:
+        logger.error(f"Error in command {ctx.command} by {ctx.author}: {error}")
 
 bot.run(TOKEN)

@@ -1,6 +1,7 @@
 #Custom
 .env
 commands/SIN.json
+/home/serveradmin/gggamers-discord-bot
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
