@@ -8,6 +8,7 @@ from commands.get_scammed import add_scam_command
 from commands.match_history import add_match_history_command
 # from commands.ask_chatgpt import add_gpt_chat_command
 from commands.jar_counter import add_jar_commands
+from commands.rank_check import add_rank_check_command
 
 from dotenv import load_dotenv
 import os
@@ -69,8 +70,13 @@ add_match_history_command(bot)
 
 #chat GPT
 # add_gpt_chat_command(bot, GUILD_IDS)
+
 #Jack counter
 add_jar_commands(bot)
+
+# Add the rank command to the bot
+add_rank_check_command(bot)
+
 
 @bot.event
 async def on_application_command(interaction: nextcord.Interaction):
