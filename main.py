@@ -15,6 +15,7 @@ from commands.mastery import add_mastery_command
 from dotenv import load_dotenv
 import os
 import logging
+import asyncio
 
 # Load .env file
 load_dotenv()
@@ -22,14 +23,51 @@ load_dotenv()
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 GUILD_IDS = list(map(int, os.getenv("GUILD_IDS", "").split(",")))
 
-# Configure global logger
-logging.basicConfig(
-    filename="bot.log",
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-
+# Configure global logger with more detailed settings
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("BotLogger")
+
+# Create file handler
+file_handler = logging.FileHandler("bot.log")
+file_handler.setFormatter(logging.Formatter(
+    "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+))
+logger.addHandler(file_handler)
+
+# Create console handler
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(logging.Formatter(
+    "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+))
+logger.addHandler(console_handler)
+
+# Add Discord logging handler
+class DiscordLoggingHandler(logging.Handler):
+    def __init__(self, bot, channel_id):
+        super().__init__()
+        self.bot = bot
+        self.channel_id = channel_id
+
+    async def log_to_discord(self, record):
+        channel = self.bot.get_channel(self.channel_id)  # Use the channel_id from init
+        if channel:
+            try:
+                message = self.format(record)
+                # Truncate message if it's too long for Discord
+                if len(message) > 1900:
+                    message = message[:1900] + "..."
+                await channel.send(f"```\n{message}\n```")
+            except Exception as e:
+                print(f"Failed to send log to Discord: {e}")
+                logger.error(f"Failed to send log to Discord: {e}", exc_info=True)
+        else:
+            print(f"Could not find Discord channel with ID: {self.channel_id}")
+            logger.error(f"Could not find Discord channel with ID: {self.channel_id}")
+
+    def emit(self, record):
+        # Create task to send log asynchronously
+        asyncio.create_task(self.log_to_discord(record))
+
 # Bot Configuration
 intents = nextcord.Intents.default()
 intents.messages = True
@@ -43,6 +81,17 @@ bot = commands.Bot(intents=intents)
 async def on_ready():
     logger.info(f"Bot logged in as {bot.user}")
     print(f"Bot logged in as {bot.user}")
+    
+    # Add Discord handler after bot is ready
+    discord_handler = DiscordLoggingHandler(bot, 1336254169656590409)
+    discord_handler.setFormatter(logging.Formatter('%(levelname)s - %(message)s'))
+    # Change to INFO level to see all logs
+    discord_handler.setLevel(logging.INFO)
+    logger.addHandler(discord_handler)
+    
+    # Test message to verify Discord logging
+    logger.info("Bot startup complete - Discord logging test message")
+    
     # Sync all commands
     await bot.sync_all_application_commands()
     print("All commands synchronized.")
@@ -87,21 +136,57 @@ add_mastery_command(bot)
 
 @bot.event
 async def on_application_command(interaction: nextcord.Interaction):
-    """Log all command invocations."""
+    """Log slash command usage."""
     try:
         user = interaction.user
-        command_name = interaction.data.get("name", "Unknown")
-        channel = interaction.channel.name if interaction.channel else "Direct Message"
-        logger.info(f"User {user} triggered command '{command_name}' in channel '{channel}'.")
+        command = interaction.application_command
+        guild = interaction.guild.name if interaction.guild else "DM"
+        channel = interaction.channel.name if interaction.channel else "Unknown"
+        
+        log_message = (
+            f"Command Execution:\n"
+            f"{user} ({user.id}) used /{command.name} in {guild}/{channel}"
+        )
+        logger.info(log_message)
+        
+        # Log command options if they exist
+        if "options" in interaction.data:
+            options = interaction.data["options"]
+            options_str = " ".join([f"{opt['name']}:{opt['value']}" for opt in options])
+            logger.info(f"Command options: {options_str}")
+            
     except Exception as e:
         logger.error(f"Error logging command invocation: {e}")
 
 @bot.event
 async def on_command_error(ctx, error):
-    """Log errors for uncaught exceptions."""
-    if isinstance(error, commands.CommandNotFound):
-        logger.warning(f"Command not found: {ctx.command}. User: {ctx.author}.")
-    else:
-        logger.error(f"Error in command {ctx.command} by {ctx.author}: {error}")
+    """Enhanced error logging."""
+    try:
+        command_name = ctx.command.name if ctx.command else "Unknown"
+        user = ctx.author
+        channel = ctx.channel.name if ctx.channel else "Unknown"
+        guild = ctx.guild.name if ctx.guild else "DM"
+        
+        error_message = (
+            f"Command Error:\n"
+            f"Command: {command_name}\n"
+            f"User: {user} (ID: {user.id})\n"
+            f"Guild: {guild}\n"
+            f"Channel: {channel}\n"
+            f"Error: {str(error)}\n"
+            f"Error Type: {type(error).__name__}"
+        )
+        
+        if isinstance(error, commands.CommandNotFound):
+            logger.warning(error_message)
+        else:
+            logger.error(error_message)
+            
+            # Log full traceback for non-CommandNotFound errors
+            import traceback
+            logger.error("Full traceback:", exc_info=error)
+            
+    except Exception as e:
+        logger.error(f"Error in error handling: {e}")
 
 bot.run(TOKEN)

@@ -2,12 +2,15 @@ import requests
 import nextcord
 from dotenv import load_dotenv
 import os
+import logging
 
 # Load the .env file
 load_dotenv()
 
 RIOT_API_KEY = os.getenv("RIOT_API_KEY")
 REGION = "na1"  # Default region
+
+logger = logging.getLogger("BotLogger")
 
 def handle_api_error(response):
     """Handle common API errors and return a user-friendly message."""
@@ -95,14 +98,23 @@ def add_rank_check_command(bot):
         description="Get the rank of a summoner by Riot ID (tag is optional, defaults to NA1)"
     )
     async def rank_command(interaction: nextcord.Interaction, riot_id: str):
-        await interaction.response.defer()  # Defer the response to prevent timeouts
+        await interaction.response.defer()
 
         try:
+            logger.info(f"Fetching rank data for: {riot_id}")
+            
+            # Parse Riot ID
+            if "#" in riot_id:
+                name, tag = riot_id.split("#")
+            else:
+                name, tag = riot_id, "NA1"
+            logger.info(f"Parsed Riot ID - Name: {name}, Tag: {tag}")
+            
             # Fetch and format the rank data
             rank_data = fetch_summoner_rank(riot_id)
+            logger.info(f"Successfully fetched rank data for {riot_id}")
+            
             formatted_data = format_rank_data(rank_data)
-
-            # Format the display name based on whether a tag was provided
             display_name = riot_id if "#" in riot_id else f"{riot_id}#NA1"
 
             embed = nextcord.Embed(
@@ -111,5 +123,8 @@ def add_rank_check_command(bot):
                 color=0x1e90ff
             )
             await interaction.followup.send(embed=embed)
+            
         except Exception as e:
+            error_msg = f"Error fetching rank data for {riot_id}: {str(e)}"
+            logger.error(error_msg, exc_info=True)
             await interaction.followup.send(str(e))

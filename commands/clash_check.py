@@ -3,12 +3,15 @@ import nextcord
 from dotenv import load_dotenv
 import os
 from datetime import datetime
+import logging
 
 # Load the .env file
 load_dotenv()
 
 RIOT_API_KEY = os.getenv("RIOT_API_KEY")
 REGION = "na1"  # Default region
+
+logger = logging.getLogger("BotLogger")
 
 def handle_api_error(response):
     """Handle common API errors and return a user-friendly message."""
@@ -113,20 +116,30 @@ def add_clash_command(bot):
         await interaction.response.defer()
         
         try:
+            logger.info(f"Fetching clash data for: {riot_id}")
+            
             # Parse Riot ID
             if "#" in riot_id:
                 name, tag = riot_id.split("#")
             else:
                 name, tag = riot_id, "NA1"
+            logger.info(f"Parsed Riot ID - Name: {name}, Tag: {tag}")
             
             # Get summoner data
             summoner = get_summoner_by_riot_id(name, tag)
+            logger.info(f"Successfully fetched summoner data for {riot_id}")
             
             # Get tournaments
             tournaments = get_active_tournaments()
+            logger.info("Successfully fetched tournament data")
             
             # Get and format team data
             team_data = get_clash_team_by_summoner(summoner["id"])
+            if team_data:
+                logger.info(f"Found active clash team for {riot_id}")
+            else:
+                logger.info(f"No active clash team found for {riot_id}")
+                
             formatted_data = format_team_data(team_data, tournaments)
             
             embed = nextcord.Embed(
@@ -138,4 +151,6 @@ def add_clash_command(bot):
             await interaction.followup.send(embed=embed)
             
         except Exception as e:
+            error_msg = f"Error fetching clash data for {riot_id}: {str(e)}"
+            logger.error(error_msg, exc_info=True)
             await interaction.followup.send(str(e)) 

@@ -2,10 +2,13 @@ import requests
 import nextcord
 from dotenv import load_dotenv
 import os
+import logging
 
 load_dotenv()
 RIOT_API_KEY = os.getenv("RIOT_API_KEY")
 REGION = "na1"
+
+logger = logging.getLogger("BotLogger")
 
 def handle_api_error(response):
     """Handle Riot API error responses."""
@@ -88,6 +91,7 @@ def add_mastery_command(bot):
         await interaction.response.defer()
         
         try:
+            logger.info(f"Fetching mastery data for summoner: {riot_id}")
             # Parse Riot ID
             if "#" in riot_id:
                 name, tag = riot_id.split("#")
@@ -116,4 +120,9 @@ def add_mastery_command(bot):
             await interaction.followup.send(embed=embed)
             
         except Exception as e:
-            await interaction.followup.send(str(e)) 
+            error_msg = f"Error fetching mastery data for {riot_id}: {str(e)}"
+            logger.error(error_msg)
+            await interaction.followup.send(
+                "An error occurred while fetching mastery data. Please try again later.",
+                ephemeral=True
+            ) 
