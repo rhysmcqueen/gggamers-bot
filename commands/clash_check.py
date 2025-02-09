@@ -110,7 +110,7 @@ def format_team_data(team_data, tournaments):
 def add_clash_command(bot):
     @bot.slash_command(
         name="clash",
-        description="Get information about a player's Clash team"
+        description="Get information about a player's Clash team",
     )
     async def clash_command(interaction: nextcord.Interaction, riot_id: str):
         await interaction.response.defer()
