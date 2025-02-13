@@ -89,6 +89,15 @@ async def fetch_and_format_history(riot_id, match_count):
 
     # Step 3: Fetch match details and format the results
     matches = [get_match_details(match_id) for match_id in match_ids]
+    
+    # Filter out early surrender games by checking both game and participant flags
+    filtered_matches = []
+    for match in matches:
+        participant = next(p for p in match["info"]["participants"] if p["puuid"] == puuid)
+        if not participant["teamEarlySurrendered"]:
+            filtered_matches.append(match)
+    matches = filtered_matches
+    
     results = []
     wins, losses = 0, 0  # Track wins and losses
 
