@@ -11,6 +11,8 @@ from commands.jar_counter import add_jar_commands
 from commands.rank_check import add_rank_check_command
 from commands.clash_check import add_clash_command
 from commands.mastery import add_mastery_command
+from commands.restart_server import add_restart_command
+
 
 from dotenv import load_dotenv
 import os
@@ -133,6 +135,9 @@ add_clash_command(bot)
 
 # Add mastery command
 add_mastery_command(bot)
+
+# Add the restart command to the bot
+add_restart_command(bot, GUILD_IDS)
 
 @bot.event
 async def on_application_command(interaction: nextcord.Interaction):
